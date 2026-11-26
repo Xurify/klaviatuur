@@ -2,7 +2,7 @@ import XCTest
 @testable import KeyboardCore
 
 final class LanguageModelIntegrationTests: XCTestCase {
-    /// Builds a model whose ids line up with `dictionary`. A nil word means <BOS>.
+    /// Builds a test model numbered like `dictionary`. A nil context word means the start of a sentence.
     private func makeModel(
         for dictionary: BinaryDictionary,
         unigrams: [String: Double] = [:],
