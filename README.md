@@ -37,6 +37,23 @@ klaviatuur/
 └── App/                             # SwiftUI companion app (Setup, Languages, Clipboard, Preferences)
 ```
 
+## Trying It in the iOS Simulator
+
+The quickest way to see Klaviatuur working: no Apple ID, no signing and no iPhone, just a Mac with Xcode.
+
+1. Generate and open the project:
+   ```bash
+   brew install xcodegen
+   xcodegen generate
+   open Klaviatuur.xcodeproj
+   ```
+2. Pick any iPhone simulator as the run destination and run the **Klaviatuur** scheme.
+3. In the simulator, open **Settings → General → Keyboard → Keyboards → Add New Keyboard → Klaviatuur**.
+4. In the Simulator menu, turn off **I/O → Keyboard → Connect Hardware Keyboard** (⇧⌘K) so the on-screen keyboard appears instead of the Mac's keys going straight into the text field.
+5. Tap the test field in Klaviatuur's setup screen, or any field in Safari, hold the globe key and pick Klaviatuur. Then click the keys to type.
+
+The simulator shows typing, predictions, autocorrect and the themes. It can't show real touch feel, haptics, the iPhone's memory limit or how other apps hand text to the keyboard, so test on a real iPhone as well.
+
 ## Testing on Your iPhone
 
 You need a Mac with Xcode, your iPhone and a USB cable. A free Apple ID is enough to start; apps it signs stop opening after 7 days, so run them again from Xcode to renew.
