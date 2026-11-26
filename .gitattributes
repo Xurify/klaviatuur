@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.kdict binary
+*.klm binary
+*.png binary

@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""Build Klaviatuur word lists and pruned Kneser-Ney n-gram models (.klm).
+
+    python3 Scripts/build_lm.py wordlists   # Data/corpora -> Data/sources/<lang>.tsv
+    python3 Scripts/build_dicts.py          # Data/sources -> <lang>.kdict
+    python3 Scripts/build_lm.py model       # Data/corpora + <lang>.kdict -> <lang>.klm
+
+Modified Kneser-Ney discounting (Chen & Goodman 1998) with continuation counts for unigrams
+and raw counts for bigrams, pruned by each n-gram's weighted log-ratio over its backoff
+estimate (after Stolcke 1998), and stored in backoff form: kept n-grams carry their
+interpolated probability and each context carries the weight that renormalizes everything
+pruned from it. Corpus weights only rank the word lists; n-gram counts stay raw so the
+discounts and minimum counts see true frequencies.
+"""
+
+from __future__ import annotations
+
+import argparse
+import math
+import re
+import sys
+import zlib
+from array import array
+from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Callable
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from lm_common import (  # noqa: E402
+    MAX_VOCAB,
+    iter_corpus_sentences,
+    normalize_text,
+    read_kdict_vocabulary,
+    tokenize_sentence,
+    vocab_fingerprint,
+)
+
+LANGUAGES = ("en", "cs", "sk", "et", "ru")
+
+
+@dataclass(frozen=True)
+class Budget:
+    bigrams: int
+    trigram_contexts: int
+    trigrams: int
+
+
+BUDGETS = {
+    "en": Budget(350_000, 45_000, 250_000),
+    "ru": Budget(350_000, 45_000, 250_000),
+    "cs": Budget(300_000, 40_000, 200_000),
+    "sk": Budget(250_000, 35_000, 180_000),
+    "et": Budget(250_000, 35_000, 180_000),
+}
+
+MAX_BIGRAMS_PER_CONTEXT = 512
+MAX_TRIGRAMS_PER_CONTEXT = 32
+# The most frequent words always keep their top few continuations, so the suggestion bar is
+# never empty after a common word even when pruning favours rarer, more surprising pairs.
+PROTECTED_CONTEXT_WORDS = 15_000
+PROTECTED_PER_CONTEXT = 3
+PROTECTED_BOS = 32
+SMALL_CORPUS_TOKENS = 15_000_000
+
+HELD_OUT_MODULUS = 200
+
+SENTENCE_START = -2
+CLAUSE_BREAK = -1
+KEY = 1 << 16
+
+# Tatoeba's conversational register is worth upweighting, except where its export is already
+# as large as the news and web corpora combined.
+TATOEBA_WEIGHT = 4
+LARGE_TATOEBA = {"en", "ru"}
+
+# Most Tatoeba sentences star the stock characters Tom and Mary; left in, "tom" ranks among
+# the five most common English words.
+TATOEBA_STOCK_NAMES = re.compile(
+    r"\b(?:Tom|Toma|Tomovi|Tomem|Tomom|Tomu|Tomi|Tomil|Tomile|Tomist|Tomiga|Tomit|Tomis|"
+    r"Mary|Marie|Mari|Mariga|Maril|Том|Тома|Тому|Томом|Томе|Мэри)\b"
+)
+
+
+def is_tatoeba(path: Path) -> bool:
+    return "tatoeba" in path.name.lower()
+
+
+def corpus_files(corpora_dir: Path, language: str) -> list[tuple[Path, int]]:
+    tatoeba_weight = 1 if language in LARGE_TATOEBA else TATOEBA_WEIGHT
+    files = sorted(path for path in (corpora_dir / language).glob("*.txt") if path.is_file())
+    return [(path, tatoeba_weight if is_tatoeba(path) else 1) for path in files]
+
+
+def is_held_out(sentence: str) -> bool:
+    """Chosen by normalized text, so every build sets aside the same sentences for evaluate_lm.py
+    and copies differing only in case or spacing land on the same side."""
+    key = " ".join(normalize_text(sentence).split())
+    return zlib.crc32(key.encode("utf-8")) % HELD_OUT_MODULUS == 0
+
+
+def iter_language_sentences(path: Path, language: str, held_out: bool = False):
+    tatoeba = is_tatoeba(path)
+    for sentence in iter_corpus_sentences([path]):
+        if is_held_out(sentence) != held_out or (tatoeba and TATOEBA_STOCK_NAMES.search(sentence)):
+            continue
+        tokens = tokenize_sentence(normalize_text(sentence), language)
+        if any(token is not None for token in tokens):
+            yield tokens
+
+
+def build_wordlist(language: str, corpora_dir: Path, output_dir: Path, max_words: int, min_count: int) -> str:
+    files = corpus_files(corpora_dir, language)
+    if not files:
+        return f"[{language}] no corpus files in {corpora_dir / language}, skipped"
+    counts: Counter[str] = Counter()
+    for path, weight in files:
+        for tokens in iter_language_sentences(path, language):
+            for token in tokens:
+                if token is not None:
+                    counts[token] += weight
+    ranked = sorted(
+        ((word, count) for word, count in counts.items() if count >= min_count),
+        key=lambda item: (-item[1], item[0]),
+    )[: min(max_words, MAX_VOCAB)]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    target = output_dir / f"{language}.tsv"
+    with target.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(
+            f"# {language} word frequencies from {', '.join(p.name for p, _ in files)}"
+            " (see THIRD_PARTY_NOTICES.md); generated by Scripts/build_lm.py\n"
+        )
+        for word, count in ranked:
+            handle.write(f"{word}\t{count}\n")
+    return f"[{language}] {len(ranked):,} words (of {len(counts):,} types) -> {target}"
+
+
+def encode_corpus(files: list[tuple[Path, int]], language: str, word_to_id: dict[str, int]):
+    """Word ids with sentence and clause markers, plus the sentence and in-vocabulary token counts."""
+    tokens = array("i")
+    sentences = 0
+    token_total = 0
+    for path, _weight in files:
+        for sentence in iter_language_sentences(path, language):
+            tokens.append(SENTENCE_START)
+            sentences += 1
+            for token in sentence:
+                word_id = word_to_id.get(token) if token is not None else None
+                tokens.append(CLAUSE_BREAK if word_id is None else word_id)
+                if word_id is not None:
+                    token_total += 1
+    return tokens, sentences, token_total
+
+
+def count_ngrams(tokens: array, bos: int, order: int, eligible: set[int] | None = None) -> Counter[int]:
+    """Counts n-grams keyed as base-2^16 integers; a trigram only when its context is eligible."""
+    counts: Counter[int] = Counter()
+    history: list[int] = []
+    for token in tokens:
+        if token == SENTENCE_START:
+            history = [bos]
+        elif token == CLAUSE_BREAK:
+            history = []
+        else:
+            if len(history) >= order - 1:
+                context = 0
+                for word in history[-(order - 1):]:
+                    context = context * KEY + word
+                if eligible is None or context in eligible:
+                    counts[context * KEY + token] += 1
+            history = (history + [token])[-(order - 1):]
+    return counts
+
+
+def discounts(count_values) -> tuple[float, float, float]:
+    n = [0] * 5
+    for value in count_values:
+        if value <= 4:
+            n[value] += 1
+    if min(n[1:]) == 0:
+        return (0.5, 1.0, 1.5)
+    y = n[1] / (n[1] + 2 * n[2])
+    clamp = lambda value, upper: min(max(value, 0.05), upper - 0.05)  # noqa: E731
+    return (
+        clamp(1 - 2 * y * n[2] / n[1], 1),
+        clamp(2 - 3 * y * n[3] / n[2], 2),
+        clamp(3 - 4 * y * n[4] / n[3], 3),
+    )
+
+
+def group_by_context(counts: Counter[int]) -> dict[int, list[tuple[int, int]]]:
+    grouped: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for key, count in counts.items():
+        context, word = divmod(key, KEY)
+        grouped[context].append((word, count))
+    return grouped
+
+
+@dataclass
+class Order:
+    """One smoothed, pruned n-gram order: kept probabilities and backoff weight per context."""
+
+    kept: dict[int, dict[int, float]]
+    bows: dict[int, float]
+
+    def probability(self, context: int, word: int, lower: float) -> float:
+        stored = self.kept.get(context, {}).get(word)
+        if stored is not None:
+            return stored
+        return self.bows.get(context, 1.0) * lower
+
+
+def estimate_order(
+    by_context: dict[int, list[tuple[int, int]]],
+    lower: Callable[[int, int], float],
+    budget: int,
+    per_context_cap: int,
+    min_count: Callable[[int], int],
+    protected: Callable[[int], int] = lambda _context: 0,
+) -> Order:
+    ds = discounts(count for entries in by_context.values() for _word, count in entries)
+    protected_rows: list[tuple[int, int, float]] = []
+    pool: list[tuple[float, int, int, float]] = []
+    for context, entries in by_context.items():
+        total = sum(count for _word, count in entries)
+        by_size = Counter(min(count, 3) for _word, count in entries)
+        gamma = (ds[0] * by_size[1] + ds[1] * by_size[2] + ds[2] * by_size[3]) / total
+        candidates = []
+        for word, count in entries:
+            if count < min_count(context):
+                continue
+            backoff = gamma * lower(context, word)
+            prob = max(count - ds[min(count, 3) - 1], 0.0) / total + backoff
+            gain = count * (math.log(prob) - math.log(backoff))
+            if gain > 0:
+                candidates.append((gain, word, prob))
+        candidates.sort(key=lambda item: -item[0])
+        candidates = candidates[:per_context_cap]
+        keep = {word for _gain, word, _prob in sorted(candidates, key=lambda item: -item[2])[: protected(context)]}
+        for gain, word, prob in candidates:
+            if word in keep:
+                protected_rows.append((context, word, prob))
+            else:
+                pool.append((gain, context, word, prob))
+    pool.sort(key=lambda item: -item[0])
+
+    protected_rows = sorted(protected_rows, key=lambda row: (-protected(row[0]), row[0], -row[2]))[:budget]
+    kept: dict[int, dict[int, float]] = defaultdict(dict)
+    for context, word, prob in protected_rows:
+        kept[context][word] = prob
+    for _gain, context, word, prob in pool[: max(0, budget - len(protected_rows))]:
+        kept[context][word] = prob
+
+    bows = {}
+    for context, words in kept.items():
+        backoff_mass = sum(lower(context, word) for word in words)
+        bows[context] = min(max((1 - sum(words.values())) / max(1 - backoff_mass, 1e-12), 1e-6), 100.0)
+    return Order(kept, bows)
+
+
+def build_model(
+    language: str,
+    files: list[tuple[Path, int]],
+    kdict_path: Path,
+    budget: Budget,
+    min_count: int | None = None,
+    log=print,
+):
+    from klm_format import KLMModel
+
+    vocabulary = read_kdict_vocabulary(kdict_path)
+    if vocabulary.count > MAX_VOCAB:
+        raise ValueError(f"{kdict_path}: {vocabulary.count} words exceeds {MAX_VOCAB}")
+    bos = vocabulary.count
+    tokens, sentences, token_total = encode_corpus(files, language, vocabulary.word_to_id())
+    if min_count is None:
+        min_count = 2 if token_total < SMALL_CORPUS_TOKENS else 3
+    log(f"[{language}] {sentences:,} sentences, {token_total:,} in-vocab tokens")
+
+    bigram_contexts = group_by_context(count_ngrams(tokens, bos, order=2))
+    continuation = [0] * vocabulary.count
+    for entries in bigram_contexts.values():
+        for word, _count in entries:
+            continuation[word] += 1
+    continuation_total = sum(continuation)
+    unigram = [(value + 0.5) / (continuation_total + 0.5 * vocabulary.count) for value in continuation]
+
+    bigrams = estimate_order(
+        bigram_contexts,
+        lower=lambda _context, word: unigram[word],
+        budget=budget.bigrams,
+        per_context_cap=MAX_BIGRAMS_PER_CONTEXT,
+        min_count=lambda context: 2 if context == bos else min_count,
+        protected=lambda context: PROTECTED_BOS if context == bos
+        else (PROTECTED_PER_CONTEXT if context < PROTECTED_CONTEXT_WORDS else 0),
+    )
+
+    def bigram_probability(context: int, word: int) -> float:
+        return bigrams.probability(context, word, unigram[word])
+
+    frequent_pairs = sorted(
+        (
+            (count, context * KEY + word)
+            for context, entries in bigram_contexts.items()
+            for word, count in entries
+            if word in bigrams.kept.get(context, {})
+        ),
+        reverse=True,
+    )
+    eligible = {key for _count, key in frequent_pairs[: budget.trigram_contexts]}
+    trigrams = estimate_order(
+        group_by_context(count_ngrams(tokens, bos, order=3, eligible=eligible)),
+        lower=lambda pair, word: bigram_probability(pair % KEY, word),
+        budget=budget.trigrams,
+        per_context_cap=MAX_TRIGRAMS_PER_CONTEXT,
+        min_count=lambda _pair: min_count,
+    )
+
+    log10 = math.log10
+    model = KLMModel(
+        vocab_count=vocabulary.count,
+        vocab_fingerprint=vocab_fingerprint(vocabulary),
+        unigram_log_prob=[log10(value) for value in unigram] + [0.0],
+        unigram_log_bow=[
+            log10(bigrams.bows[context]) if context in bigrams.bows else None
+            for context in range(vocabulary.count + 1)
+        ],
+        bigrams={
+            context: [
+                (
+                    word,
+                    log10(prob),
+                    log10(trigrams.bows[context * KEY + word]) if context * KEY + word in trigrams.bows else None,
+                )
+                for word, prob in words.items()
+            ]
+            for context, words in bigrams.kept.items()
+        },
+        trigrams={
+            divmod(pair, KEY): [(word, log10(prob)) for word, prob in words.items()]
+            for pair, words in trigrams.kept.items()
+        },
+    )
+    log(
+        f"[{language}] kept {sum(map(len, bigrams.kept.values())):,} bigrams, "
+        f"{len(trigrams.kept):,} trigram contexts, {sum(map(len, trigrams.kept.values())):,} trigrams"
+    )
+    return model
+
+
+def model_probability(model, word: int, prev1: int | None, prev2: int | None) -> float:
+    """Unquantized backoff probability, for tests that check normalization."""
+    unigram = 10 ** model.unigram_log_prob[word]
+    if prev1 is None:
+        return unigram
+    bigram_rows = {row[0]: row for row in model.bigrams.get(prev1, [])}
+    bow1 = model.unigram_log_bow[prev1]
+    bigram = 10 ** bigram_rows[word][1] if word in bigram_rows else (10 ** bow1 if bow1 is not None else 1.0) * unigram
+    if prev2 is None:
+        return bigram
+    trigram_rows = dict(model.trigrams.get((prev2, prev1), []))
+    if word in trigram_rows:
+        return 10 ** trigram_rows[word]
+    pair_bow = next((row[2] for row in model.bigrams.get(prev2, []) if row[0] == prev1), None)
+    return (10 ** pair_bow if pair_bow is not None else 1.0) * bigram
+
+
+def _build_language(language: str, corpora_dir: Path, dict_dir: Path, budget: Budget) -> str:
+    from klm_format import write_klm
+
+    files = corpus_files(corpora_dir, language)
+    kdict = dict_dir / f"{language}.kdict"
+    if not files:
+        return f"[{language}] no corpus files, skipped"
+    if not kdict.exists():
+        return f"[{language}] {kdict} missing, run build_dicts.py first"
+    lines: list[str] = []
+    model = build_model(language, files, kdict, budget, log=lines.append)
+    target = dict_dir / f"{language}.klm"
+    lines.append(f"[{language}] wrote {target} ({write_klm(model, target):,} bytes)")
+    return "\n".join(lines)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("command", choices=["wordlists", "model"])
+    parser.add_argument("--corpora-dir", type=Path, default=Path("Data/corpora"))
+    parser.add_argument("--sources-dir", type=Path, default=Path("Data/sources"))
+    parser.add_argument("--dict-dir", type=Path, default=Path("KeyboardExtension/Resources/Dictionaries"))
+    parser.add_argument("--languages", nargs="+", default=list(LANGUAGES))
+    parser.add_argument("--max-words", type=int, default=50_000)
+    parser.add_argument("--min-count", type=int, default=3, help="minimum corpus count for a word-list entry")
+    parser.add_argument("--scale", type=float, default=1.0, help="multiply every n-gram budget")
+    arguments = parser.parse_args()
+
+    with ProcessPoolExecutor(max_workers=len(arguments.languages)) as executor:
+        jobs = []
+        for language in arguments.languages:
+            if arguments.command == "wordlists":
+                jobs.append(executor.submit(
+                    build_wordlist, language, arguments.corpora_dir, arguments.sources_dir,
+                    arguments.max_words, arguments.min_count,
+                ))
+            else:
+                base = BUDGETS.get(language, BUDGETS["sk"])
+                budget = Budget(*(int(value * arguments.scale) for value in
+                                  (base.bigrams, base.trigram_contexts, base.trigrams)))
+                jobs.append(executor.submit(
+                    _build_language, language, arguments.corpora_dir, arguments.dict_dir, budget,
+                ))
+        for job in jobs:
+            print(job.result(), flush=True)
+
+
+if __name__ == "__main__":
+    main()

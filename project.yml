@@ -1,0 +1,86 @@
+name: Klaviatuur
+options:
+  bundleIdPrefix: com.klaviatuur
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+packages:
+  KeyboardCore:
+    path: Packages/KeyboardCore
+
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Klaviatuur:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - "**/*.plist"
+          - "**/*.entitlements"
+    resources:
+      - path: App/Resources/Assets.xcassets
+    entitlements:
+      path: App/Klaviatuur.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.klaviatuur.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.klaviatuur.app
+        INFOPLIST_FILE: App/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - package: KeyboardCore
+      - target: KlaviatuurKeyboard
+        embed: true
+        codeSign: true
+
+  KlaviatuurKeyboard:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: KeyboardExtension
+        excludes:
+          - "**/*.plist"
+          - "**/*.entitlements"
+          - "Resources/Dictionaries"
+    resources:
+      - path: KeyboardExtension/Resources/Dictionaries
+        buildPhase: resources
+    entitlements:
+      path: KeyboardExtension/KlaviatuurKeyboard.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.klaviatuur.shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.klaviatuur.app.keyboard
+        INFOPLIST_FILE: KeyboardExtension/Info.plist
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+    dependencies:
+      - package: KeyboardCore
+
+schemes:
+  Klaviatuur:
+    build:
+      targets:
+        Klaviatuur: all
+        KlaviatuurKeyboard: all
+    run:
+      config: Debug
+    archive:
+      config: Release
