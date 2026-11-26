@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public struct AutocorrectRevertState: Equatable, Sendable {
     public let originalTypedWord: String
@@ -77,8 +78,12 @@ public final class TypingSessionController {
         pendingSentenceStart = false
         // Some hosts report the keyboard's own insertion back through textDidChange; the
         // correction stays undoable while the cursor is still right after it.
-        if let revert = lastAutocorrectRevert, !Self.isRightAfter(revert, in: context) {
-            lastAutocorrectRevert = nil
+        if let revert = lastAutocorrectRevert {
+            let kept = Self.isRightAfter(revert, in: context)
+            KeyboardLog.input.debug("Host reported a text change; autocorrect undo \(kept ? "kept" : "dropped", privacy: .public)")
+            if !kept {
+                lastAutocorrectRevert = nil
+            }
         }
         refreshSuggestions(activeLanguages: activeLanguages, autocorrectEnabled: autocorrectEnabled)
     }

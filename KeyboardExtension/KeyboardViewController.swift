@@ -1,5 +1,6 @@
 import UIKit
 import KeyboardCore
+import os
 
 final class KeyboardViewController: UIInputViewController {
     private let storage = AppGroupStorage()
@@ -31,7 +32,12 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         settings = storage.loadSettings()
+        let loadStart = Date()
         engine.loadDictionaries(from: Bundle.main, languages: LanguageCode.allCases)
+        let withModels = LanguageCode.allCases.filter(engine.hasLanguageModel(for:)).map(\.rawValue)
+        KeyboardLog.lifecycle.info(
+            "Loaded languages in \(Date().timeIntervalSince(loadStart) * 1000, format: .fixed(precision: 1)) ms; predictions for \(withModels.joined(separator: ", "), privacy: .public)"
+        )
         configureHierarchy()
         applyCurrentState()
     }
@@ -41,6 +47,7 @@ final class KeyboardViewController: UIInputViewController {
         settings = storage.loadSettings()
         clipboardStore.reload()
         clipboardPanelView.setFullAccess(hasFullAccess)
+        KeyboardLog.lifecycle.info("Keyboard appeared; Full Access \(self.hasFullAccess ? "on" : "off", privacy: .public)")
         if canPlayHaptics {
             hapticGenerator.prepare()
         }
@@ -58,6 +65,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
+        KeyboardLog.lifecycle.notice("Memory warning received")
         if !isClipboardVisible {
             clipboardPanelView.releaseCards()
         }
@@ -211,6 +219,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func syncDocumentContext() {
         let beforeCursor = textDocumentProxy.documentContextBeforeInput
+        KeyboardLog.input.debug("Host gave \(beforeCursor?.count ?? 0) characters before the cursor")
         let activeLanguages = settings.activeLanguagesForCurrentLayout()
         typingSession.syncWithDocumentContext(
             textBeforeCursor: beforeCursor,

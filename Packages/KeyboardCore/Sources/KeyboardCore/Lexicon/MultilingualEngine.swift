@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public final class MultilingualEngine {
     private var lexicons: [LanguageCode: Lexicon]
@@ -17,12 +18,25 @@ public final class MultilingualEngine {
                 ?? bundle.url(forResource: language.rawValue, withExtension: fileExtension, subdirectory: "Dictionaries")
         }
         for language in languages where lexicons[language] == nil {
-            guard let dictionaryURL = url(language, "kdict"),
-                  let dictionary = try? BinaryDictionary(contentsOf: dictionaryURL)
-            else { continue }
-            registerDictionary(dictionary, for: language)
-            if let modelURL = url(language, "klm"), let model = try? BinaryLanguageModel(contentsOf: modelURL) {
-                registerLanguageModel(model, for: language)
+            let code = language.rawValue
+            guard let dictionaryURL = url(language, "kdict") else {
+                KeyboardLog.lexicon.error("\(code, privacy: .public).kdict is missing from the bundle")
+                continue
+            }
+            do {
+                registerDictionary(try BinaryDictionary(contentsOf: dictionaryURL), for: language)
+            } catch {
+                KeyboardLog.lexicon.error("\(code, privacy: .public).kdict failed to load: \(String(describing: error), privacy: .public)")
+                continue
+            }
+            guard let modelURL = url(language, "klm") else {
+                KeyboardLog.lexicon.notice("\(code, privacy: .public).klm is missing, so \(code, privacy: .public) has no predictions")
+                continue
+            }
+            do {
+                registerLanguageModel(try BinaryLanguageModel(contentsOf: modelURL), for: language)
+            } catch {
+                KeyboardLog.lexicon.error("\(code, privacy: .public).klm failed to load: \(String(describing: error), privacy: .public)")
             }
         }
     }
@@ -34,9 +48,9 @@ public final class MultilingualEngine {
     @discardableResult
     public func registerLanguageModel(_ model: BinaryLanguageModel, for language: LanguageCode) -> Bool {
         guard lexicons[language]?.attach(model) == true else {
-            #if DEBUG
-            print("Klaviatuur: \(language.rawValue).klm does not match \(language.rawValue).kdict, ignoring it")
-            #endif
+            KeyboardLog.lexicon.error(
+                "\(language.rawValue, privacy: .public).klm was built for a different .kdict, so it is ignored"
+            )
             return false
         }
         return true

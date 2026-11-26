@@ -55,6 +55,12 @@ klaviatuur/
 4. Run the **Klaviatuur** scheme on your iPhone.
 5. On your iPhone, go to **Settings → General → Keyboard → Keyboards → Add New Keyboard → Klaviatuur**, then tap **Klaviatuur** and enable **Allow Full Access**.
 
+## Debugging the Keyboard on a Device
+
+- **Logs:** with the iPhone connected, open Console.app on the Mac, select the phone and filter by subsystem `com.klaviatuur.app.keyboard`. Turn on **Action → Include Debug Messages** to see how much text the host app gives the keyboard and whether autocorrect undo survives its text-change reports. Typed text is never logged.
+- **Debugger:** run the **Klaviatuur** scheme, open any text field with the keyboard showing, then **Debug → Attach to Process → KlaviatuurKeyboard**.
+- **Memory and speed:** profile the attached extension with Instruments (Allocations, Time Profiler). iOS ends keyboard extensions at roughly 48 MB.
+
 ## Developing from Windows with GitHub Actions CI
 
 Push this repository to GitHub. Every push and pull request runs `.github/workflows/ios-ci.yml` on `macos-15`:
