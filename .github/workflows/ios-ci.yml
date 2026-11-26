@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Compile and verify binary dictionaries (.kdict)
         run: |
@@ -57,12 +57,14 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
+          extension_plist=build/DerivedData/Build/Products/Release-iphoneos/Klaviatuur.app/PlugIns/KlaviatuurKeyboard.appex/Info.plist
+          test "$(plutil -extract NSExtension.NSExtensionPointIdentifier raw "$extension_plist")" = com.apple.keyboard-service
           mkdir -p build/Payload
           cp -R build/DerivedData/Build/Products/Release-iphoneos/Klaviatuur.app build/Payload/
           (cd build && zip -qr Klaviatuur-unsigned.ipa Payload)
 
       - name: Upload unsigned .ipa artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Klaviatuur-unsigned-ipa
           path: build/Klaviatuur-unsigned.ipa

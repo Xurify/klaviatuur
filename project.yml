@@ -31,8 +31,6 @@ targets:
           - "**/*.entitlements"
     resources:
       - path: App/Resources/Assets.xcassets
-    info:
-      path: App/Info.plist
     entitlements:
       path: App/Klaviatuur.entitlements
       properties:
@@ -62,8 +60,6 @@ targets:
     resources:
       - path: KeyboardExtension/Resources/Dictionaries
         buildPhase: resources
-    info:
-      path: KeyboardExtension/Info.plist
     entitlements:
       path: KeyboardExtension/KlaviatuurKeyboard.entitlements
       properties:
