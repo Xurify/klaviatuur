@@ -1,0 +1,69 @@
+name: iOS Build & Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile and verify binary dictionaries (.kdict)
+        run: |
+          python3 Scripts/build_dicts.py
+          python3 Scripts/verify_dicts.py
+
+      - name: Run Python script unit tests and verify language models (.klm)
+        run: |
+          python3 -m unittest discover -s Scripts -p 'test_*.py'
+          python3 Scripts/verify_lm.py --golden
+
+      - name: Run KeyboardCore SwiftPM unit tests
+        run: swift test --package-path Packages/KeyboardCore
+
+      - name: Measure keystroke latency and memory with optimizations on
+        run: swift test --package-path Packages/KeyboardCore -c release -Xswiftc -enable-testing --filter PerformanceTests
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for iOS Simulator
+        run: |
+          xcodebuild \
+            -project Klaviatuur.xcodeproj \
+            -scheme Klaviatuur \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Build Release unsigned .ipa for sideloading
+        run: |
+          xcodebuild \
+            -project Klaviatuur.xcodeproj \
+            -scheme Klaviatuur \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+          mkdir -p build/Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/Klaviatuur.app build/Payload/
+          (cd build && zip -qr Klaviatuur-unsigned.ipa Payload)
+
+      - name: Upload unsigned .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Klaviatuur-unsigned-ipa
+          path: build/Klaviatuur-unsigned.ipa
+          retention-days: 14
