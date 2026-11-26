@@ -84,8 +84,6 @@ public final class MultilingualEngine {
         userLearnedWords.insert(trimmed.lowercased())
     }
 
-    // MARK: - Language momentum
-
     public func recordCommittedWord(_ word: String, history: WordHistory = .empty, activeLanguages: [LanguageCode]) {
         guard !word.isEmpty else { return }
         let matches = activeLanguages.compactMap { language -> (LanguageCode, UInt16)? in
@@ -129,8 +127,6 @@ public final class MultilingualEngine {
     private func momentumBoost(_ language: LanguageCode, weight: Double) -> Double {
         1.0 + (languageMomentum[language] ?? 0) * weight
     }
-
-    // MARK: - Suggestions
 
     public func nextCharacterScores(forPrefix prefix: String, activeLanguages: [LanguageCode]) -> [UInt32: Double] {
         var combined: [UInt32: Double] = [:]
@@ -226,8 +222,6 @@ public final class MultilingualEngine {
         )
     }
 
-    // MARK: - Candidate sources
-
     private struct TypedWord {
         let text: String
         let lowered: String
@@ -257,7 +251,6 @@ public final class MultilingualEngine {
         }
     }
 
-    /// The typed letters with diacritics restored: "dakujem" -> "ďakujem", "еще" -> "ещё".
     private func restorationCandidates(_ typed: TypedWord, _ scoring: Scoring) -> [SuggestionCandidate] {
         scoring.lexicon.dictionary.exactMatches(for: typed.text).map { match in
             let score = (match.word.lowercased() == typed.lowered ? 2.45 : 2.35)
@@ -326,8 +319,6 @@ public final class MultilingualEngine {
         }
     }
 
-    // MARK: - Autocorrect
-
     private func autocorrectReplacement(
         _ typed: TypedWord,
         restorations: [SuggestionCandidate],
@@ -376,8 +367,6 @@ public final class MultilingualEngine {
         }
         return result
     }
-
-    // MARK: - Helpers
 
     private func frequency(_ score: UInt16) -> Double {
         Double(score) / 65535.0

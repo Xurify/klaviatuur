@@ -95,7 +95,6 @@ final class PerformanceTests: XCTestCase {
         }
     }
 
-    /// Milliseconds spent in the session for each key, applying its edits to a stand-in document.
     private func simulateTyping(_ text: String, into session: TypingSessionController) -> [Double] {
         var document = ""
         var timings: [Double] = []

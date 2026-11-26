@@ -324,8 +324,6 @@ final class KeyboardViewController: UIInputViewController {
     }
 }
 
-// MARK: - KeyboardSurfaceDelegate
-
 extension KeyboardViewController: KeyboardSurfaceDelegate {
     func keyboardSurface(_ surface: KeyboardSurfaceView, didUpdateKeyGeometries geometries: [KeyGeometry]) {
         engine.updateKeyGeometry(geometries)
@@ -501,8 +499,6 @@ extension KeyboardViewController: KeyboardSurfaceDelegate {
     }
 }
 
-// MARK: - SuggestionToolbarDelegate
-
 extension KeyboardViewController: SuggestionToolbarDelegate {
     func suggestionToolbar(
         _ toolbar: SuggestionToolbarView,
@@ -551,8 +547,6 @@ extension KeyboardViewController: SuggestionToolbarDelegate {
         }
     }
 }
-
-// MARK: - ClipboardPanelDelegate
 
 extension KeyboardViewController: ClipboardPanelDelegate {
     func clipboardPanel(_ panel: ClipboardPanelView, didSelectText text: String) {

@@ -207,8 +207,6 @@ public final class BinaryLanguageModel: @unchecked Sendable {
         return results
     }
 
-    // MARK: - Lookup
-
     private var read: ByteReader { ByteReader(bytes) }
 
     private func slot(_ token: LMContextToken?) -> Int? {
@@ -286,8 +284,6 @@ private struct ByteReader {
     func u64(_ offset: Int) -> UInt64 { UInt64(littleEndian: bytes.loadUnaligned(fromByteOffset: offset, as: UInt64.self)) }
     func f32(_ offset: Int) -> Float32 { Float32(bitPattern: u32(offset)) }
 }
-
-// MARK: - In-memory builder for tests
 
 extension BinaryLanguageModel {
     public static func buildInMemory(

@@ -11,7 +11,6 @@ public struct ProbabilisticHitResolver {
     ) -> KeyGeometry? {
         guard !geometries.isEmpty else { return nil }
 
-        // Direct geometric hit first
         let directHit = geometries.first { $0.frame.contains(touchPoint) }
 
         // Non-letter utility keys (shift, backspace, space, return, globe, mode switch, numbers)
@@ -20,7 +19,6 @@ public struct ProbabilisticHitResolver {
             return directHit
         }
 
-        // If probabilistic hitboxes are disabled or there is no linguistic context yet, use nearest key.
         if !probabilisticEnabled || nextCharacterScores.isEmpty {
             return directHit ?? nearestKey(to: touchPoint, in: geometries)
         }

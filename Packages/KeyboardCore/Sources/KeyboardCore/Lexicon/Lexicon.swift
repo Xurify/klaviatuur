@@ -1,6 +1,5 @@
 import Foundation
 
-/// One language's word list and, when it ships one, the n-gram model built from it.
 struct Lexicon {
     let dictionary: BinaryDictionary
     private(set) var model: BinaryLanguageModel?
@@ -29,7 +28,6 @@ struct Lexicon {
         model?.contextLift(of: wordId, in: context) ?? 0
     }
 
-    /// Predictions as (word, score in 0...1, matched a trigram).
     func predictions(in context: PreparedLMContext, limit: Int) -> [(word: String, score: Double, isTrigram: Bool)] {
         guard let model else { return [] }
         let span = model.maxLogProb - model.minLogProb

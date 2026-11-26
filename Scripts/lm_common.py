@@ -82,10 +82,6 @@ def vocab_fingerprint(vocabulary: KdictVocabulary) -> int:
     return state
 
 
-# ---------------------------------------------------------------------------
-# Tokenization
-# ---------------------------------------------------------------------------
-
 BOS = "<BOS>"
 BREAK = None  # clause boundary / out-of-vocabulary marker; n-grams never span it
 

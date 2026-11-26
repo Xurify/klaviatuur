@@ -71,10 +71,6 @@ SENTENCE_START = -2
 CLAUSE_BREAK = -1
 KEY = 1 << 16
 
-# ---------------------------------------------------------------------------
-# Corpus
-# ---------------------------------------------------------------------------
-
 # Tatoeba's conversational register is worth upweighting, except where its export is already
 # as large as the news and web corpora combined.
 TATOEBA_WEIGHT = 4
@@ -176,11 +172,6 @@ def count_ngrams(tokens: array, bos: int, order: int, eligible: set[int] | None 
                     counts[context * KEY + token] += 1
             history = (history + [token])[-(order - 1):]
     return counts
-
-
-# ---------------------------------------------------------------------------
-# Smoothing and pruning
-# ---------------------------------------------------------------------------
 
 
 def discounts(count_values) -> tuple[float, float, float]:
@@ -374,11 +365,6 @@ def model_probability(model, word: int, prev1: int | None, prev2: int | None) ->
         return 10 ** trigram_rows[word]
     pair_bow = next((row[2] for row in model.bigrams.get(prev2, []) if row[0] == prev1), None)
     return (10 ** pair_bow if pair_bow is not None else 1.0) * bigram
-
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def _build_language(language: str, corpora_dir: Path, dict_dir: Path, budget: Budget) -> str:

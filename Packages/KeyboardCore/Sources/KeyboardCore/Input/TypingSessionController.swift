@@ -319,7 +319,6 @@ public final class TypingSessionController {
         return [.insert(separator)]
     }
 
-    /// Words the user undid a correction for, and tokens with digits ("2nd", "user1"), are left as typed.
     private func canAutocorrect(_ word: String, enabled: Bool) -> Bool {
         enabled && !word.contains(where: \.isNumber) && !rejectedAutocorrectWords.contains(word.lowercased())
     }

@@ -188,7 +188,6 @@ public final class BinaryDictionary: @unchecked Sendable {
             return []
         }
 
-        // Best-first exploration ordered by node.maxSubtreeScore
         var frontier: [(nodeIndex: Int, maxScore: UInt16)] = [
             (startNodeIndex, readNode(at: startNodeIndex).maxSubtreeScore)
         ]
@@ -311,7 +310,6 @@ public final class BinaryDictionary: @unchecked Sendable {
 
                     var best = min(deleteCost, min(insertCost, replaceCost))
 
-                    // Adjacent transposition (Damerau-Levenshtein)
                     if column > 1,
                        depth > 0,
                        let previousScalar,
@@ -363,8 +361,6 @@ public final class BinaryDictionary: @unchecked Sendable {
         }
         return unique
     }
-
-    // MARK: - In-memory builder for tests
 
     public static func buildInMemory(words: [(word: String, score: UInt16)]) throws -> BinaryDictionary {
         final class BuilderNode {
@@ -493,8 +489,6 @@ public final class BinaryDictionary: @unchecked Sendable {
 
         return try BinaryDictionary(data: binary)
     }
-
-    // MARK: - Low-Level Binary Readers
 
     private struct TrieNodeRecord {
         let edgeStart: UInt32

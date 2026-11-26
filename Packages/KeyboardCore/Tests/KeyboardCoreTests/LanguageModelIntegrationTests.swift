@@ -34,8 +34,6 @@ final class LanguageModelIntegrationTests: XCTestCase {
         )
     }
 
-    // MARK: - Engine
-
     private func makeRussianEngine() throws -> MultilingualEngine {
         let russian = try BinaryDictionary.buildInMemory(words: [
             ("все", 60000), ("всё", 50000), ("это", 62000), ("почти", 40000), ("привет", 45000)
@@ -211,8 +209,6 @@ final class LanguageModelIntegrationTests: XCTestCase {
         )
         XCTAssertEqual(session.history.tokens, [.sentenceStart, .word("don't")])
     }
-
-    // MARK: - Typing session
 
     func testExtractTrailingContext() {
         func check(

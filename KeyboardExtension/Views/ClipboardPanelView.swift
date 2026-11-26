@@ -156,7 +156,6 @@ final class ClipboardPanelView: UIView {
         emptyStateLabel.isHidden = !entries.isEmpty
         clearRecentButton.isHidden = !hasFullAccess || !entries.contains(where: { !$0.isPinned })
 
-        // Render entries in pairs (2-column Pixel clipboard grid)
         var index = 0
         while index < entries.count {
             let rowStack = UIStackView()

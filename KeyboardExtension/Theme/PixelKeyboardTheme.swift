@@ -28,7 +28,6 @@ struct PixelKeyboardTheme {
     let keyCornerRadius: CGFloat
     let returnKeyIsPill: Bool
     let showsKeyShadow: Bool
-    /// Top-to-bottom colors drawn behind the whole keyboard; nil means a flat `canvasBackground`.
     let backdropGradient: [UIColor]?
 
     static func resolved(
@@ -55,8 +54,6 @@ struct PixelKeyboardTheme {
 
     static let pixelDark = tonalDark
     static let pixelLight = tonalLight
-
-    // MARK: - Borderless: no key fills, only the space bar and return key are filled
 
     static let borderlessDark = PixelKeyboardTheme(
         isDark: true,
@@ -116,8 +113,6 @@ struct PixelKeyboardTheme {
         backdropGradient: nil
     )
 
-    // MARK: - Tonal: grey letter keys, blue-tinted special keys
-
     static let tonalDark = PixelKeyboardTheme(
         isDark: true,
         canvasBackground: UIColor(hex: 0x1D2024),
@@ -176,8 +171,6 @@ struct PixelKeyboardTheme {
         backdropGradient: nil
     )
 
-    // MARK: - Vivid: the whole keyboard tinted, raised keys
-
     static let vividDark = PixelKeyboardTheme(
         isDark: true,
         canvasBackground: UIColor(hex: 0x0F2A20),
@@ -235,8 +228,6 @@ struct PixelKeyboardTheme {
         showsKeyShadow: true,
         backdropGradient: nil
     )
-
-    // MARK: - Glass: translucent tiles over a soft gradient
 
     static let glassDark = PixelKeyboardTheme(
         isDark: true,

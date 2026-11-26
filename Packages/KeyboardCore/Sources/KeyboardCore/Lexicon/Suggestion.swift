@@ -18,7 +18,6 @@ public struct SuggestionResult: Equatable, Sendable {
     public let suggestions: [SuggestionCandidate]
     public let autocorrectReplacement: String?
     public let detectedLanguage: LanguageCode?
-    /// Next-word predictions rather than completions of a typed word.
     public let isPrediction: Bool
 
     public static let empty = SuggestionResult(suggestions: [], autocorrectReplacement: nil, detectedLanguage: nil)

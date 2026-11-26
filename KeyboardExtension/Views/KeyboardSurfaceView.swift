@@ -88,7 +88,6 @@ final class KeyboardSurfaceView: UIView {
         let availableWidth = bounds.width - horizontalPadding * 2
         let availableHeight = bounds.height - topPadding - bottomPadding
 
-        // Number row is slightly shorter than letter rows (classic Pixel proportions)
         let hasNumberRow = layoutSpec.mode == .letters && settings.showNumberRow
         let totalHeightUnits: CGFloat = hasNumberRow
             ? 0.78 + CGFloat(rowCount - 1)
@@ -135,12 +134,9 @@ final class KeyboardSurfaceView: UIView {
         delegate?.keyboardSurface(self, didUpdateKeyGeometries: computedGeometries)
     }
 
-    // MARK: - Zero-Latency Multi-Touch Handling
-
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard !keyGeometries.isEmpty else { return }
 
-        // Commit any lingering single-character rollover touch before processing new touch
         for (identifier, existing) in activeTouches where !existing.isLongPressMenuActive && !existing.isScrubbingSpacebar {
             if existing.keyGeometry.keySpec.kind.isLetterInput {
                 commitTouch(identifier: identifier)
@@ -266,8 +262,6 @@ final class KeyboardSurfaceView: UIView {
         }
     }
 
-    // MARK: - Touch Actions & Timers
-
     private func commitTouch(identifier: ObjectIdentifier) {
         guard let state = activeTouches[identifier] else { return }
         let keySpec = state.keyGeometry.keySpec
@@ -366,8 +360,6 @@ final class KeyboardSurfaceView: UIView {
         }
         popupView.hide()
     }
-
-    // MARK: - Subview Pool Management
 
     private func rebuildKeyViews() {
         for view in keyViewsByID.values {

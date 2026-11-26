@@ -29,7 +29,6 @@ final class TypingSessionControllerTests: XCTestCase {
             [.replaceBackward(deleteCount: 7, insertText: "ďakujem ")]
         )
 
-        // Immediate backspace reverts autocorrect back to literal "dakujem"
         let undoActions = session.handleBackspace(
             textBeforeCursor: "ďakujem ",
             activeLanguages: languages,

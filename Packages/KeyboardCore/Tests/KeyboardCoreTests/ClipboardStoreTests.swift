@@ -14,14 +14,12 @@ final class ClipboardStoreTests: XCTestCase {
         XCTAssertNotNil(pinned)
         _ = store.recordCopiedText("temporary code 1234", retentionMinutes: 60, now: baseTime)
 
-        // Two hours later, unpinned item expires while pinned snippet remains
         let twoHoursLater = baseTime.addingTimeInterval(7200)
         let entriesAfterExpiry = store.allEntries(retentionMinutes: 60, now: twoHoursLater)
         XCTAssertEqual(entriesAfterExpiry.count, 1)
         XCTAssertEqual(entriesAfterExpiry.first?.text, "my.email@example.com")
         XCTAssertTrue(entriesAfterExpiry.first?.isPinned == true)
 
-        // Reload from disk verifies persistence
         let reloadedStore = ClipboardStore(fileURL: temporaryFile)
         XCTAssertEqual(reloadedStore.pinnedEntries().first?.text, "my.email@example.com")
     }
@@ -80,7 +78,6 @@ final class AppGroupStorageTests: XCTestCase {
 
         XCTAssertEqual(appStorage.loadSettings().activeScript, .cyrillic)
 
-        // A later change from the app wins again.
         var laterFromApp = fromApp
         laterFromApp.showNumberRow = false
         appStorage.saveSettings(laterFromApp, now: Date(timeIntervalSince1970: 300))
