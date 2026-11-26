@@ -37,23 +37,32 @@ klaviatuur/
 └── App/                             # SwiftUI companion app (Setup, Languages, Clipboard, Preferences)
 ```
 
-## Building & Running on Your MacBook (Xcode)
+## Testing on Your iPhone
 
-1. Install [XcodeGen](https://github.com/yonaskolb/XcodeGen) if you don't have it:
+You need a Mac with Xcode, your iPhone and a USB cable. A free Apple ID is enough to start; apps it signs stop opening after 7 days, so run them again from Xcode to renew.
+
+1. **Generate the Xcode project** (the dictionaries and models are already in the repo):
    ```bash
    brew install xcodegen
-   ```
-2. Compile dictionaries and generate the Xcode project:
-   ```bash
-   python3 Scripts/build_dicts.py
    xcodegen generate
    open Klaviatuur.xcodeproj
    ```
-3. In Xcode, select both the **Klaviatuur** and **KlaviatuurKeyboard** targets → **Signing & Capabilities**:
-   - Pick your Apple Development Team.
-   - Update the bundle ID prefix if needed (e.g. `com.yourname.klaviatuur` and `com.yourname.klaviatuur.keyboard`) and ensure the App Group (`group.com.klaviatuur.shared` or your matching group ID in `AppGroupStorage.swift`, `App/Klaviatuur.entitlements`, and `KeyboardExtension/KlaviatuurKeyboard.entitlements`) is checked on both targets.
-4. Run the **Klaviatuur** scheme on your iPhone.
-5. On your iPhone, go to **Settings → General → Keyboard → Keyboards → Add New Keyboard → Klaviatuur**, then tap **Klaviatuur** and enable **Allow Full Access**.
+2. **Set up signing.** In Xcode, for both the **Klaviatuur** and **KlaviatuurKeyboard** targets, open **Signing & Capabilities** and pick your team (your Apple ID).
+   - If Xcode says the bundle ID is taken, use your own prefix, such as `com.yourname.klaviatuur` and `com.yourname.klaviatuur.keyboard`; the keyboard's ID must start with the app's.
+   - Both targets need the same App Group. If you change it from `group.com.klaviatuur.shared`, change it in `AppGroupStorage.swift`, `App/Klaviatuur.entitlements` and `KeyboardExtension/KlaviatuurKeyboard.entitlements` too.
+3. **Prepare the iPhone.** Plug it in and tap **Trust** on the phone. On iOS 16 or later, turn on **Settings → Privacy & Security → Developer Mode** and let the phone restart.
+4. **Install.** Choose your iPhone as the run destination and run the **Klaviatuur** scheme. The first time, iOS may block it: open **Settings → General → VPN & Device Management**, select your Apple ID and tap **Trust**, then run again.
+5. **Turn the keyboard on.** **Settings → General → Keyboard → Keyboards → Add New Keyboard → Klaviatuur**. Tap **Klaviatuur** in the list and turn on **Allow Full Access** if you want clipboard history and haptics; typing and predictions work without it.
+6. **Try it.** Open Notes or Messages, hold the globe key and pick Klaviatuur, then check:
+   - type `dakujem`, `prilis`, `tanan` and see the accents restored;
+   - mix English, Czech, Slovak and Estonian in one sentence without switching;
+   - after a few words, the bar shows next-word predictions; after `thank`, expect `you`;
+   - an autocorrection followed straight away by Backspace goes back to what you typed;
+   - double-tap Shift for Caps Lock, and the suggestions turn to capitals;
+   - switch to Russian with the globe key or a long press on the space bar;
+   - try a few apps (Safari, WhatsApp, a web form), since each host app feeds the keyboard text differently.
+
+Without a Mac, the unsigned `.ipa` from each CI run can be installed with AltStore or SideStore, which sign it with your Apple ID.
 
 ## Debugging the Keyboard on a Device
 
