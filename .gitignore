@@ -1,0 +1,28 @@
+# Xcode & macOS
+*.xcodeproj/
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+.DS_Store
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local secrets & signing
+*.p12
+*.mobileprovision
+*.cer
+Config/Signing.local.xcconfig
+
+# Downloaded training corpora
+Data/corpora/
